@@ -277,7 +277,7 @@ app = FastAPI(
 # FIXED: Properly format the fallback default string separated by a comma
 ALLOWED_ORIGINS_RAW = os.getenv(
     "ALLOWED_ORIGINS",
-    "http://localhost:5173,https://survey-app-frontend-mauve.vercel.app,http://localhost:3000"
+    "http://localhost:5173,https://survey-app-pulse.vercel.app/login,http://localhost:3000"
 )
 
 ALLOWED_ORIGINS = [origin.strip() for origin in ALLOWED_ORIGINS_RAW.split(",") if origin.strip()]
