@@ -138,12 +138,14 @@
 #         ],
 #     }
 
-
-
 from fastapi import FastAPI, Depends, HTTPException, status, Request
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 import os
+import sys
+
+# Add parent directory to path so database, models, etc. are importable
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from database import get_db
 import models, schemas, auth
@@ -245,40 +247,10 @@ def get_survey_stats(
         "responses_today": 48,
         "completion_rate": 73.4,
         "surveys": [
-            {
-                "id": 1,
-                "title": "Customer Satisfaction Q2 2025",
-                "responses": 234,
-                "status": "active",
-                "completion": 82,
-            },
-            {
-                "id": 2,
-                "title": "Employee Engagement Survey",
-                "responses": 87,
-                "status": "active",
-                "completion": 67,
-            },
-            {
-                "id": 3,
-                "title": "Product Feedback - Mobile App",
-                "responses": 156,
-                "status": "active",
-                "completion": 91,
-            },
-            {
-                "id": 4,
-                "title": "NPS Survey - Enterprise Clients",
-                "responses": 43,
-                "status": "draft",
-                "completion": 0,
-            },
-            {
-                "id": 5,
-                "title": "Onboarding Experience 2025",
-                "responses": 310,
-                "status": "closed",
-                "completion": 100,
-            },
+            {"id": 1, "title": "Customer Satisfaction Q2 2025", "responses": 234, "status": "active", "completion": 82},
+            {"id": 2, "title": "Employee Engagement Survey", "responses": 87, "status": "active", "completion": 67},
+            {"id": 3, "title": "Product Feedback - Mobile App", "responses": 156, "status": "active", "completion": 91},
+            {"id": 4, "title": "NPS Survey - Enterprise Clients", "responses": 43, "status": "draft", "completion": 0},
+            {"id": 5, "title": "Onboarding Experience 2025", "responses": 310, "status": "closed", "completion": 100},
         ],
     }
