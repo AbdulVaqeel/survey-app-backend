@@ -11,7 +11,6 @@ from auth import hash_password
 # Load default password from environment
 DEFAULT_PASSWORD = os.getenv("DEFAULT_PASSWORD", "change_me")
 
-models.Base.metadata.create_all(bind=engine)
 
 db = SessionLocal()
 
