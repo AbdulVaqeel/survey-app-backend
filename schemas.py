@@ -1,10 +1,11 @@
-# from pydantic import BaseModel
 # from typing import Optional
+
+# from pydantic import BaseModel, Field
 
 
 # class LoginRequest(BaseModel):
-#     username: str
-#     password: str
+#     username: str = Field(..., min_length=1)
+#     password: str = Field(..., min_length=1)
 
 
 # class UserOut(BaseModel):
@@ -21,8 +22,8 @@
 #     token_type: str
 #     user: UserOut
 
-from typing import Optional
 
+from typing import Optional
 from pydantic import BaseModel, Field
 
 
@@ -36,8 +37,7 @@ class UserOut(BaseModel):
     username: str
     full_name: Optional[str] = None
 
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
 
 
 class TokenResponse(BaseModel):
