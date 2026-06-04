@@ -144,7 +144,8 @@ if not logger.handlers:
 
         except Exception as e:
             print(
-                f"[Splunk Logging Warning]: Failed to initialize SplunkHandler: {e}",
+                f"[Splunk Warning] SplunkHandler failed: {e} — "
+                f"Run: pip install splunk-handler",
                 file=sys.stderr
             )
 

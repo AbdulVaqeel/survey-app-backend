@@ -161,6 +161,7 @@ ALLOWED_ORIGINS_RAW = os.getenv(
     "http://localhost:5173,https://survey-app-pulse.vercel.app,http://localhost:3000"
 )
 ALLOWED_ORIGINS = [origin.strip() for origin in ALLOWED_ORIGINS_RAW.split(",") if origin.strip()]
+print(f"[CORS] Allowed origins: {ALLOWED_ORIGINS}", flush=True)
 
 app.add_middleware(
     CORSMiddleware,
