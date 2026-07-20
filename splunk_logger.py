@@ -19,7 +19,7 @@ def send_to_splunk(action: str, username: str, ip: str, reason: str = None):
     payload = {
         "time": datetime.datetime.utcnow().timestamp(),
         "index": "survey_auth_logs",
-        "sourcetype": "survey_auth",
+        "sourcetype": "survey:auth",
         "event": {
             "action": action,
             "username": username,
