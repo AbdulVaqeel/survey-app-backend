@@ -764,13 +764,13 @@ def send_contact_email(name, email, subject, message):
     <div style="font-family:sans-serif;background:#f8fafc;padding:40px 0">
       <div style="max-width:560px;margin:0 auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.08)">
         <div style="background:linear-gradient(135deg,#0d9488,#f59e0b);padding:24px 32px">
-          <h2 style="color:#fff;margin:0;font-size:18px">Contact form Info</h2>
+          <h2 style="color:#fff;margin:0;font-size:18px">New contact form message</h2>
         </div>
         <div style="padding:28px 32px">
           <p style="margin:4px 0"><strong>Name:</strong> {name}</p>
           <p style="margin:4px 0"><strong>Email:</strong> {email}</p>
           {f'<p style="margin:4px 0"><strong>Subject:</strong> {subject}</p>' if subject else ''}
-          <div style="background:#f0fdfa;border:1px solid #99f6e4;border-radius:10px;padding:16px;margin:16px 0;white-space:pre-wrap;color:#0f172a"><strong>Message:</strong>{message}</div>
+          <div style="background:#f0fdfa;border:1px solid #99f6e4;border-radius:10px;padding:16px;margin:16px 0;white-space:pre-wrap;color:#0f172a">{message}</div>
         </div>
         <div style="background:#f8fafc;padding:16px;text-align:center;font-size:12px;color:#94a3b8">Sent from the SurveyMatrix contact form</div>
       </div>
@@ -854,7 +854,7 @@ def update_me(payload: dict, db: Session = Depends(get_db),
 
 # ── Surveys (owner only) ──────────────────────────────────────────────────────
 @app.post("/surveys", response_model=schemas.SurveyOut, status_code=201)
-def create_survey(payload: schemas.SurveyCreate, db: Session = Depends(get_db),
+def create_survey(payload: schemas.SurveyCreate, request: Request, db: Session = Depends(get_db),
                   current_user: models.User = Depends(auth.get_current_user)):
     survey = models.Survey(
         owner_id=current_user.id, title=payload.title,
@@ -873,8 +873,9 @@ def create_survey(payload: schemas.SurveyCreate, db: Session = Depends(get_db),
 
     db.flush()
 
-    # Generate QR code for the public survey URL
-    public_url = f"{APP_URL}/survey/respond/{survey.id}"
+    # Generate QR code for the public survey URL (use the dashboard's real
+    # origin, not the static APP_URL fallback — see _frontend_origin)
+    public_url = f"{_frontend_origin(request)}/survey/respond/{survey.id}"
     survey.qr_code = generate_qr_code(public_url)
 
     db.commit(); db.refresh(survey)
@@ -971,12 +972,29 @@ def _survey_or_404(survey_id, db, current_user):
     return survey
 
 
-def _invite_link(survey_id: int, token: str) -> str:
-    return f"{APP_URL}/survey/respond/{survey_id}?token={token}"
+def _frontend_origin(request: Request) -> str:
+    """Best-effort resolution of the frontend's real origin, so generated invite
+    links point at whatever host is actually serving the dashboard right now
+    (e.g. http://localhost:5173 in dev) instead of always falling back to the
+    static APP_URL env var (which defaults to the production domain). Without
+    this, invite links created from a local/dev dashboard point at production
+    and respondent submissions land in a completely different database —
+    which is why they'd never show up in this dashboard's Results page."""
+    origin = request.headers.get("origin") or request.headers.get("referer")
+    if origin:
+        from urllib.parse import urlparse
+        parsed = urlparse(origin)
+        if parsed.scheme and parsed.netloc:
+            return f"{parsed.scheme}://{parsed.netloc}"
+    return APP_URL
+
+
+def _invite_link(survey_id: int, token: str, origin: str = None) -> str:
+    return f"{origin or APP_URL}/survey/respond/{survey_id}?token={token}"
 
 
 @app.post("/surveys/{survey_id}/invites/upload", response_model=schemas.InviteUploadResult, status_code=201)
-def upload_invites_csv(survey_id: int, file: UploadFile = File(...),
+def upload_invites_csv(survey_id: int, request: Request, file: UploadFile = File(...),
                        db: Session = Depends(get_db),
                        current_user: models.User = Depends(auth.get_current_user)):
     """
@@ -1025,11 +1043,12 @@ def upload_invites_csv(survey_id: int, file: UploadFile = File(...),
     for inv in created:
         db.refresh(inv)
 
+    origin = _frontend_origin(request)
     out = [
         schemas.InviteOut(
             id=inv.id, token=inv.token, name=inv.name, email=inv.email,
             status=inv.status, created_at=inv.created_at,
-            link=_invite_link(survey_id, inv.token),
+            link=_invite_link(survey_id, inv.token, origin),
         )
         for inv in created
     ]
@@ -1037,24 +1056,25 @@ def upload_invites_csv(survey_id: int, file: UploadFile = File(...),
 
 
 @app.get("/surveys/{survey_id}/invites", response_model=list[schemas.InviteOut])
-def list_invites(survey_id: int, db: Session = Depends(get_db),
+def list_invites(survey_id: int, request: Request, db: Session = Depends(get_db),
                  current_user: models.User = Depends(auth.get_current_user)):
     _survey_or_404(survey_id, db, current_user)
     invites = db.query(models.Invite).filter(
         models.Invite.survey_id == survey_id
     ).order_by(models.Invite.created_at.desc()).all()
+    origin = _frontend_origin(request)
     return [
         schemas.InviteOut(
             id=inv.id, token=inv.token, name=inv.name, email=inv.email,
             status=inv.status, created_at=inv.created_at,
-            link=_invite_link(survey_id, inv.token),
+            link=_invite_link(survey_id, inv.token, origin),
         )
         for inv in invites
     ]
 
 
 @app.get("/surveys/{survey_id}/invites/{invite_id}/qr")
-def get_invite_qr(survey_id: int, invite_id: int, db: Session = Depends(get_db),
+def get_invite_qr(survey_id: int, invite_id: int, request: Request, db: Session = Depends(get_db),
                   current_user: models.User = Depends(auth.get_current_user)):
     _survey_or_404(survey_id, db, current_user)
     invite = db.query(models.Invite).filter(
@@ -1062,7 +1082,8 @@ def get_invite_qr(survey_id: int, invite_id: int, db: Session = Depends(get_db),
     ).first()
     if not invite:
         raise HTTPException(status_code=404, detail="Invite not found.")
-    return {"qr_code": generate_qr_code(_invite_link(survey_id, invite.token))}
+    origin = _frontend_origin(request)
+    return {"qr_code": generate_qr_code(_invite_link(survey_id, invite.token, origin))}
 
 
 @app.delete("/surveys/{survey_id}/invites", status_code=204)
@@ -1075,16 +1096,17 @@ def clear_invites(survey_id: int, db: Session = Depends(get_db),
 
 
 @app.get("/surveys/{survey_id}/invites/export")
-def export_invites_csv(survey_id: int, db: Session = Depends(get_db),
+def export_invites_csv(survey_id: int, request: Request, db: Session = Depends(get_db),
                        current_user: models.User = Depends(auth.get_current_user)):
     survey = _survey_or_404(survey_id, db, current_user)
     invites = db.query(models.Invite).filter(models.Invite.survey_id == survey_id).all()
 
+    origin = _frontend_origin(request)
     buf = io.StringIO()
     writer = csv.writer(buf)
     writer.writerow(["Name", "Email", "Status", "Unique Link"])
     for inv in invites:
-        writer.writerow([inv.name or "", inv.email or "", inv.status, _invite_link(survey_id, inv.token)])
+        writer.writerow([inv.name or "", inv.email or "", inv.status, _invite_link(survey_id, inv.token, origin)])
 
     return StreamingResponse(
         io.BytesIO(buf.getvalue().encode("utf-8")),
