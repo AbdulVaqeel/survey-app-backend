@@ -744,10 +744,63 @@ def send_welcome_email(to_email, full_name, username, password):
         logger.error(f"Welcome email failed: {e}")
 
 
+# ── Contact form email ─────────────────────────────────────────────────────────
+CONTACT_TO_EMAIL = os.getenv("CONTACT_TO_EMAIL", "abc@gmail.com")
+
+def send_contact_email(name, email, subject, message):
+    smtp_host = os.getenv("SMTP_HOST")
+    smtp_port = int(os.getenv("SMTP_PORT", "587"))
+    smtp_user = os.getenv("SMTP_USER")
+    smtp_pass = os.getenv("SMTP_PASS")
+    if not all([smtp_host, smtp_user, smtp_pass]):
+        logger.warning("SMTP not configured — contact message NOT sent.")
+        return False
+    msg = MIMEMultipart("alternative")
+    msg["Subject"]   = f"[Contact form] {subject or 'New message from ' + name}"
+    msg["From"]      = smtp_user
+    msg["To"]        = CONTACT_TO_EMAIL
+    msg["Reply-To"]  = email
+    html = f"""
+    <div style="font-family:sans-serif;background:#f8fafc;padding:40px 0">
+      <div style="max-width:560px;margin:0 auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.08)">
+        <div style="background:linear-gradient(135deg,#0d9488,#f59e0b);padding:24px 32px">
+          <h2 style="color:#fff;margin:0;font-size:18px">Contact form Info</h2>
+        </div>
+        <div style="padding:28px 32px">
+          <p style="margin:4px 0"><strong>Name:</strong> {name}</p>
+          <p style="margin:4px 0"><strong>Email:</strong> {email}</p>
+          {f'<p style="margin:4px 0"><strong>Subject:</strong> {subject}</p>' if subject else ''}
+          <div style="background:#f0fdfa;border:1px solid #99f6e4;border-radius:10px;padding:16px;margin:16px 0;white-space:pre-wrap;color:#0f172a"><strong>Message:</strong>{message}</div>
+        </div>
+        <div style="background:#f8fafc;padding:16px;text-align:center;font-size:12px;color:#94a3b8">Sent from the SurveyMatrix contact form</div>
+      </div>
+    </div>"""
+    msg.attach(MIMEText(html, "html"))
+    try:
+        with smtplib.SMTP(smtp_host, smtp_port) as s:
+            s.ehlo(); s.starttls(); s.login(smtp_user, smtp_pass)
+            s.sendmail(smtp_user, CONTACT_TO_EMAIL, msg.as_string())
+        return True
+    except Exception as e:
+        logger.error(f"Contact email failed: {e}")
+        return False
+
+
 # ── Root ──────────────────────────────────────────────────────────────────────
 @app.get("/")
 def root():
     return {"message": "SurveyMatrix API v2.0 running"}
+
+
+@app.post("/contact", status_code=201)
+def submit_contact(payload: schemas.ContactRequest):
+    """Public contact-form endpoint — no auth required. Emails CONTACT_TO_EMAIL
+    (set via the CONTACT_TO_EMAIL env var; defaults to abc@gmail.com) using the
+    same SMTP_HOST/SMTP_USER/SMTP_PASS settings as the welcome email."""
+    sent = send_contact_email(payload.name, payload.email, payload.subject, payload.message)
+    if not sent:
+        raise HTTPException(status_code=503, detail="Message could not be sent right now — email is not configured on the server.")
+    return {"message": "Message sent."}
 
 
 # ── Auth ──────────────────────────────────────────────────────────────────────

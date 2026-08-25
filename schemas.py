@@ -258,3 +258,11 @@ class InviteUploadResult(BaseModel):
     created: int
     skipped: int
     invites: List[InviteOut]
+
+
+# ── Public contact form ─────────────────────────────────────────────────────────
+class ContactRequest(BaseModel):
+    name: str
+    email: EmailStr
+    subject: Optional[str] = None
+    message: str
